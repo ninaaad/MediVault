@@ -11,6 +11,12 @@ app.use(express.json());
 const authRoutes = require('./routes/auth.routes');
 app.use('/api/auth', authRoutes);
 
+const documentRoutes = require('./routes/documents.routes');
+app.use('/api/documents', documentRoutes);
+
+const timelineRoutes = require('./routes/timeline.routes');
+app.use('/api/timeline', timelineRoutes);
+
 // app.get('/api/db-test', async (req, res) => {
 //     try {
 //         const result = await pool.query('SELECT NOW()');
