@@ -1,1 +1,1 @@
-Just a test md file for this project :)
+MediVault is a secure digital health record management system that enables users to store, organize, and track their medical reports over time. The backend is built with Node.js, Express.js, and PostgreSQL, featuring JWT-based authentication, automated extraction of structured health data from raw medical reports, and timeline-based visualization of health metrics for longitudinal analysis.
