@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediVault - Timeline</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <a href="dashboard.html" class="logo">MediVault</a>
+        <div class="nav-links">
+            <a href="dashboard.html">Dashboard</a>
+            <a href="timeline.html">Timeline</a>
+            <a href="#" onclick="logout()">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="tile" style="max-width: 800px; margin: 0 auto 2rem auto;">
+            <h3>Test Timeline</h3>
+            <p style="margin-bottom: 1rem; opacity: 0.9;">Search for a specific test across all your documents to see
+                how it has changed over time.</p>
+
+            <form id="timeline-form" style="display: flex; gap: 1rem; align-items: flex-end;">
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                    <label>Test Name</label>
+                    <input type="text" id="test-name" required placeholder="e.g. Haemoglobin">
+                </div>
+                <button type="submit" class="btn" style="background: white; color: var(--primary-blue);">Fetch
+                    History</button>
+            </form>
+        </div>
+
+        <div class="tile light hidden" id="timeline-results" style="max-width: 800px; margin: 0 auto;">
+            <h3 style="color: var(--primary-blue);">Results: <span id="display-test-name"></span></h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Value</th>
+                        <th>Unit</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="timeline-tbody">
+                    <!-- populated by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="api.js"></script>
+    <script>
+        requireAuth();
+
+        document.getElementById('timeline-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const testName = document.getElementById('test-name').value;
+            const btn = e.target.querySelector('button');
+
+            try {
+                btn.disabled = true;
+                btn.style.opacity = '0.7';
+
+                const results = await apiCall(`/timeline?test=${encodeURIComponent(testName)}`);
+
+                document.getElementById('display-test-name').textContent = testName;
+                const tbody = document.getElementById('timeline-tbody');
+                tbody.innerHTML = '';
+
+                const points = results.data_points || [];
+                if (!points.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No data found for this test.</td></tr>';
+                } else {
+                    points.forEach(val => {
+                        const isFlagged = val.is_flagged || val.flagged || false;
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${new Date(val.date || val.document_date).toLocaleDateString()}</td>
+                            <td class="${isFlagged ? 'flagged' : ''}">${val.value || '-'}</td>
+                            <td>${val.unit || '-'}</td>
+                            <td class="${isFlagged ? 'flagged' : ''}">${isFlagged ? 'Flagged' : 'Normal'}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+                document.getElementById('timeline-results').classList.remove('hidden');
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }
+        });
+    </script>
+</body>
+
+</html>

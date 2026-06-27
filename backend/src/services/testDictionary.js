@@ -1,7 +1,12 @@
 const TEST_DICTIONARY = {
+  "hba1c": {
+    canonical_name: "HbA1c",
+    aliases: ["hba1c", "glycated haemoglobin", "glycated hemoglobin", "a1c"],
+    typical_unit: "%"
+  },
   "haemoglobin": {
     canonical_name: "Haemoglobin",
-    aliases: ["haemoglobin", "hemoglobin", "hb", "hgb"],
+    aliases: ["haemoglobin", "hemoglobin"],
     typical_unit: "g/dL"
   },
   "wbc": {

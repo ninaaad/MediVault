@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediVault - Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="dashboard.html" class="logo">MediVault</a>
+        <div class="nav-links">
+            <a href="dashboard.html">Dashboard</a>
+            <a href="timeline.html">Timeline</a>
+            <a href="#" onclick="logout()">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="dashboard-layout">
+            <!-- Sidebar for previous documents -->
+            <aside class="sidebar">
+                <h3>My Documents</h3>
+                <div id="docs-list">
+                    <p class="text-muted" style="font-size: 0.875rem;">Loading documents...</p>
+                </div>
+            </aside>
+
+            <!-- Main content for adding / viewing doc -->
+            <main class="main-content">
+                <div class="tile">
+                    <h3>Add New Document</h3>
+                    <form id="add-doc-form" style="margin-top: 1rem;">
+                        <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                                <label>Document Type</label>
+                                <select id="doc-type" required>
+                                    <option value="" disabled selected>Select Type</option>
+                                    <option value="Blood Test">Blood Test</option>
+                                    <option value="Urine Test">Urine Test</option>
+                                    <option value="Prescription">Prescription</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                                <label>Date</label>
+                                <input type="date" id="doc-date" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Report Text (Paste raw text here)</label>
+                            <textarea id="doc-text" rows="5" required placeholder="Paste the text from your medical report here..."></textarea>
+                        </div>
+                        <button type="submit" class="btn" style="background: white; color: var(--primary-blue);">Extract & Save</button>
+                    </form>
+                </div>
+
+                <div class="tile light hidden" id="extraction-results">
+                    <h3 style="color: var(--primary-blue);">Extracted Values</h3>
+                    <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 1rem;">Values extracted from your document.</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Test Name</th>
+                                <th>Value</th>
+                                <th>Unit</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="extracted-tbody">
+                            <!-- populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="api.js"></script>
+    <script>
+        requireAuth();
+
+        async function loadDocuments() {
+            try {
+                const data = await apiCall('/documents');
+                const docs = data.documents;
+                const list = document.getElementById('docs-list');
+                list.innerHTML = '';
+                
+                if (docs.length === 0) {
+                    list.innerHTML = '<p class="text-muted" style="font-size: 0.875rem;">No documents found.</p>';
+                    return;
+                }
+
+                docs.forEach(doc => {
+                    const item = document.createElement('div');
+                    item.className = 'doc-item';
+                    item.innerHTML = `
+                        <h4>${doc.document_type || 'Unknown'}</h4>
+                        <p>${new Date(doc.document_date).toLocaleDateString()}</p>
+                    `;
+                    item.onclick = () => {
+                        document.querySelectorAll('.doc-item').forEach(el => el.classList.remove('active'));
+                        item.classList.add('active');
+                        showExtractedValues(doc.extracted_values || [], doc.document_type, doc.raw_text);
+                    };
+                    list.appendChild(item);
+                });
+            } catch (err) {
+                console.error(err);
+                document.getElementById('docs-list').innerHTML = '<p style="color: #ef4444; font-size: 0.875rem;">Error loading documents.</p>';
+            }
+        }
+
+        function showExtractedValues(values, docType, rawText) {
+            const resultsDiv = document.getElementById('extraction-results');
+            const tbody = document.getElementById('extracted-tbody');
+            const tableEl = resultsDiv.querySelector('table');
+            tbody.innerHTML = '';
+
+            // Remove any existing raw text display
+            const existingRaw = document.getElementById('raw-text-display');
+            if (existingRaw) existingRaw.remove();
+
+            if (docType === 'Prescription') {
+                // Hide table, show formatted raw text instead
+                tableEl.style.display = 'none';
+                const rawDiv = document.createElement('div');
+                rawDiv.id = 'raw-text-display';
+                rawDiv.style.cssText = 'white-space: pre-line; font-size: 0.95rem; line-height: 1.8; color: var(--text-main); padding: 1rem 0;';
+                rawDiv.textContent = rawText || 'No text available.';
+                resultsDiv.querySelector('p').after(rawDiv);
+            } else {
+                // Show table for all other types
+                tableEl.style.display = 'table';
+
+                // Sort by clinical order
+                const TEST_ORDER = [
+                    "Haemoglobin", "RBC Count", "WBC Count", "Platelet Count",
+                    "Fasting Blood Sugar", "Postprandial Blood Sugar", "HbA1c",
+                    "Total Cholesterol", "LDL Cholesterol", "HDL Cholesterol", "Triglycerides",
+                    "TSH", "T3", "T4",
+                    "SGPT (ALT)", "SGOT (AST)", "Total Bilirubin",
+                    "Creatinine", "Blood Urea"
+                ];
+                values = [...(values || [])].sort((a, b) => {
+                    const ai = TEST_ORDER.indexOf(a.test_name);
+                    const bi = TEST_ORDER.indexOf(b.test_name);
+                    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+                });
+
+                if (!values || values.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="color:#888;">No values extracted from this document.</td></tr>';
+                } else {
+                    values.forEach(val => {
+                        const isFlagged = val.is_flagged || val.flagged || false;
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${val.test_name || '-'}</td>
+                            <td class="${isFlagged ? 'flagged' : ''}">${val.value || '-'}</td>
+                            <td>${val.unit || '-'}</td>
+                            <td class="${isFlagged ? 'flagged' : ''}">${isFlagged ? '⚠ Flagged' : 'Normal'}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+            }
+            resultsDiv.classList.remove('hidden');
+        }
+
+        document.getElementById('add-doc-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const document_type = document.getElementById('doc-type').value;
+            const document_date = document.getElementById('doc-date').value;
+            const raw_text = document.getElementById('doc-text').value;
+            const btn = e.target.querySelector('button');
+
+            try {
+                btn.disabled = true;
+                btn.style.opacity = '0.7';
+                btn.textContent = 'Processing...';
+
+                const res = await apiCall('/documents', 'POST', { document_type, document_date, raw_text });
+                
+                // Refresh list
+                await loadDocuments();
+                
+                // Show newly extracted values
+                showExtractedValues(res.extracted_values || [], document_type, raw_text);;
+                
+                // Reset form
+                document.getElementById('add-doc-form').reset();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.textContent = 'Extract & Save';
+            }
+        });
+
+        // Init
+        loadDocuments();
+    </script>
+</body>
+</html>
