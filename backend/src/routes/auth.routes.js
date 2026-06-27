@@ -14,38 +14,47 @@ router.post('/signup', async (req, res) => {
         });
     }
 
+    const client = await pool.connect();
     try {
-        const existing = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+      await client.query('BEGIN');
+      const existing = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
 
-        if (existing.rows.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message: "Sign-up failed. Email already exists."
-            });
-        }
+      if (existing.rows.length > 0) {
+        await client.query('ROLLBACK');
+        client.release();
+        return res.status(409).json({
+          success: false,
+          message: "Sign-up failed. Email already exists."
+        });
+      }
 
-        const password_hash = await bcrypt.hash(password, 10);
-        const result = await pool.query('INSERT INTO users (full_name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, full_name, email, created_at', [full_name, email, password_hash]);
-        const user = result.rows[0];
+      const password_hash = await bcrypt.hash(password, 10);
+      const result = await pool.query('INSERT INTO users (full_name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, full_name, email, created_at', [full_name, email, password_hash]);
+      const user = result.rows[0];
         
-        const token = jwt.sign(
-            {sub: user.id, email: user.email, role: 'PATIENT'}, process.env.JWT_SECRET, {expiresIn: process.env.JWT_EXPIRES_IN}
-        );
+      const token = jwt.sign(
+          {sub: user.id, email: user.email, role: 'PATIENT'}, process.env.JWT_SECRET, {expiresIn: process.env.JWT_EXPIRES_IN}
+      );
+      await client.query('COMMIT');
 
-        res.status(201).json({
-            success: true,
-            message: "Account Created Successfully.",
-            token,
-            user
-        })
+      res.status(201).json({
+          success: true,
+          message: "Account Created Successfully.",
+          token,
+          user
+      });
     }
 
     catch (err){
+      await client.query('ROLLBACK'); 
         console.error("Signup error:", err);
         res.status(500).json({
             success: false,
             message : "SERVER ERROR- Sign-up failed. Please try again later."
         });
+    }
+    finally {
+      client.release();
     }
 
 });
