@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://medivault-backend-fmcd.onrender.com/api';
 
 function getToken() {
     return localStorage.getItem('mediVaultToken');
