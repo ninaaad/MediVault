@@ -44,9 +44,9 @@ async function apiCall(endpoint, method = 'GET', body = null) {
     try {
         const response = await fetch(`${API_BASE}${endpoint}`, config);
         const data = await response.json();
-        
+
         if (!response.ok) {
-            if (response.status === 401) {
+            if (response.status === 401 && !endpoint.includes('/auth/')) {
                 clearToken();
                 window.location.href = 'index.html';
             }
