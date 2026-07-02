@@ -324,7 +324,7 @@
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
                             <td>${val.test_name}</td>
-                            <td class="${flagged ? 'flagged' : ''}">${val.value}</td>
+                            <td class="${flagged ? 'flagged' : ''}">${parseFloat(val.value).toString()}</td>
                             <td>${val.unit || '-'}</td>
                             <td>${new Date(val.document_date).toLocaleDateString()}</td>
                             <td class="${flagged ? 'flagged' : ''}">${flagged ? '⚠ Flagged' : 'Normal'}</td>
