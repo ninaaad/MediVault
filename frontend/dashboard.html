@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MediVault - Dashboard</title>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <nav class="navbar">
         <a href="dashboard.html" class="logo">MediVault</a>
@@ -28,6 +30,43 @@
 
             <!-- Main content for adding / viewing doc -->
             <main class="main-content">
+                <!-- SUMMARY CARDS -->
+                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:1rem;">
+                    <div class="tile" style="padding:1.25rem; text-align:center;">
+                        <p style="opacity:0.8; font-size:0.85rem; margin-bottom:0.25rem;">Total Documents</p>
+                        <h2 id="stat-docs" style="font-size:2rem; font-weight:700;">—</h2>
+                    </div>
+                    <div class="tile" style="padding:1.25rem; text-align:center;">
+                        <p style="opacity:0.8; font-size:0.85rem; margin-bottom:0.25rem;">Values Extracted</p>
+                        <h2 id="stat-values" style="font-size:2rem; font-weight:700;">—</h2>
+                    </div>
+                    <div class="tile"
+                        style="padding:1.25rem; text-align:center; background: linear-gradient(135deg, #ef4444, #b91c1c);">
+                        <p style="opacity:0.8; font-size:0.85rem; margin-bottom:0.25rem;">Flagged Values</p>
+                        <h2 id="stat-flagged" style="font-size:2rem; font-weight:700;">—</h2>
+                    </div>
+                </div>
+
+                <!-- LATEST HEALTH SNAPSHOT -->
+                <div class="tile light hidden" id="latest-values-card">
+                    <h3 style="color:var(--primary-blue); margin-bottom:0.5rem;">Latest Health Snapshot</h3>
+                    <p class="text-muted" style="font-size:0.875rem; margin-bottom:1rem;">Most recent value per test
+                        across all your documents.</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Test</th>
+                                <th>Latest Value</th>
+                                <th>Unit</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="latest-tbody"></tbody>
+                    </table>
+                </div>
+
+                <!-- ADD NEW DOCUMENT -->
                 <div class="tile">
                     <h3>Add New Document</h3>
                     <form id="add-doc-form" style="margin-top: 1rem;">
@@ -49,15 +88,19 @@
                         </div>
                         <div class="form-group">
                             <label>Report Text (Paste raw text here)</label>
-                            <textarea id="doc-text" rows="5" required placeholder="Paste the text from your medical report here..."></textarea>
+                            <textarea id="doc-text" rows="5" required
+                                placeholder="Paste the text from your medical report here..."></textarea>
                         </div>
-                        <button type="submit" class="btn" style="background: white; color: var(--primary-blue);">Extract & Save</button>
+                        <button type="submit" class="btn" style="background: white; color: var(--primary-blue);">Extract
+                            & Save</button>
                     </form>
                 </div>
 
+                <!-- EXTRACTION RESULTS -->
                 <div class="tile light hidden" id="extraction-results">
                     <h3 style="color: var(--primary-blue);">Extracted Values</h3>
-                    <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 1rem;">Values extracted from your document.</p>
+                    <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 1rem;">Values extracted from your
+                        document.</p>
                     <table>
                         <thead>
                             <tr>
@@ -67,11 +110,10 @@
                                 <th>Status</th>
                             </tr>
                         </thead>
-                        <tbody id="extracted-tbody">
-                            <!-- populated by JS -->
-                        </tbody>
+                        <tbody id="extracted-tbody"></tbody>
                     </table>
                 </div>
+
             </main>
         </div>
     </div>
@@ -86,7 +128,7 @@
                 const docs = data.documents;
                 const list = document.getElementById('docs-list');
                 list.innerHTML = '';
-                
+
                 if (docs.length === 0) {
                     list.innerHTML = '<p class="text-muted" style="font-size: 0.875rem;">No documents found.</p>';
                     return;
@@ -96,8 +138,13 @@
                     const item = document.createElement('div');
                     item.className = 'doc-item';
                     item.innerHTML = `
-                        <h4>${doc.document_type || 'Unknown'}</h4>
-                        <p>${new Date(doc.document_date).toLocaleDateString()}</p>
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                            <div>
+                                <h4>${doc.document_type || 'Unknown'}</h4>
+                                <p>${new Date(doc.document_date).toLocaleDateString()}</p>
+                            </div>
+                            <button onclick="deleteDocument('${doc.id}', event)" style="background:none; border:none; cursor:pointer; color:#ef4444; font-size:1.1rem; padding:0 4px;">✕</button>
+                        </div>
                     `;
                     item.onclick = () => {
                         document.querySelectorAll('.doc-item').forEach(el => el.classList.remove('active'));
@@ -109,6 +156,19 @@
             } catch (err) {
                 console.error(err);
                 document.getElementById('docs-list').innerHTML = '<p style="color: #ef4444; font-size: 0.875rem;">Error loading documents.</p>';
+            }
+        }
+
+        async function deleteDocument(id, event) {
+            event.stopPropagation();
+            if (!confirm('Delete this document and all its extracted values?')) return;
+
+            try {
+                await apiCall(`/documents/${id}`, 'DELETE');
+                await loadDocuments();
+                document.getElementById('extraction-results').classList.add('hidden');
+            } catch (err) {
+                alert('Error deleting document: ' + err.message);
             }
         }
 
@@ -168,6 +228,54 @@
             resultsDiv.classList.remove('hidden');
         }
 
+        async function loadSummary() {
+            try {
+                const res = await apiCall('/summary');
+                const s = res.summary;
+
+                document.getElementById('stat-docs').textContent = s.total_documents;
+                document.getElementById('stat-values').textContent = s.total_extracted_values;
+                document.getElementById('stat-flagged').textContent = s.total_flagged;
+
+                if (s.latest_values && s.latest_values.length > 0) {
+                    const tbody = document.getElementById('latest-tbody');
+                    tbody.innerHTML = '';
+
+                    const TEST_ORDER = [
+                        "Haemoglobin", "RBC Count", "WBC Count", "Platelet Count",
+                        "Fasting Blood Sugar", "Postprandial Blood Sugar", "HbA1c",
+                        "Total Cholesterol", "LDL Cholesterol", "HDL Cholesterol", "Triglycerides",
+                        "TSH", "T3", "T4", "SGPT (ALT)", "SGOT (AST)", "Total Bilirubin",
+                        "Creatinine", "Blood Urea"
+                    ];
+
+                    const sorted = [...s.latest_values].sort((a, b) => {
+                        const ai = TEST_ORDER.indexOf(a.test_name);
+                        const bi = TEST_ORDER.indexOf(b.test_name);
+                        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+                    });
+
+                    sorted.forEach(val => {
+                        const flagged = val.is_flagged;
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${val.test_name}</td>
+                            <td class="${flagged ? 'flagged' : ''}">${val.value}</td>
+                            <td>${val.unit || '-'}</td>
+                            <td>${new Date(val.document_date).toLocaleDateString()}</td>
+                            <td class="${flagged ? 'flagged' : ''}">${flagged ? '⚠ Flagged' : 'Normal'}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+
+                    document.getElementById('latest-values-card').classList.remove('hidden');
+                }
+
+            } catch (err) {
+                console.error('Summary load error:', err);
+            }
+        }
+
         document.getElementById('add-doc-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const document_type = document.getElementById('doc-type').value;
@@ -181,13 +289,13 @@
                 btn.textContent = 'Processing...';
 
                 const res = await apiCall('/documents', 'POST', { document_type, document_date, raw_text });
-                
+
                 // Refresh list
                 await loadDocuments();
-                
+
                 // Show newly extracted values
                 showExtractedValues(res.extracted_values || [], document_type, raw_text);;
-                
+
                 // Reset form
                 document.getElementById('add-doc-form').reset();
             } catch (err) {
@@ -201,6 +309,8 @@
 
         // Init
         loadDocuments();
+        loadSummary();
     </script>
 </body>
+
 </html>

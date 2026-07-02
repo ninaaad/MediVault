@@ -20,6 +20,9 @@ app.use('/api/documents', documentRoutes);
 const timelineRoutes = require('./routes/timeline.routes');
 app.use('/api/timeline', timelineRoutes);
 
+const summaryRoutes = require('./routes/summary.routes');
+app.use('/api/summary', summaryRoutes);
+
 // app.get('/api/db-test', async (req, res) => {
 //     try {
 //         const result = await pool.query('SELECT NOW()');
