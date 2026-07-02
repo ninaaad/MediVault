@@ -22,15 +22,22 @@
         <div class="dashboard-layout">
             <!-- Sidebar for previous documents -->
             <aside class="sidebar">
-                <h3>My Documents</h3>
+                <button onclick="showPanel('add')"
+                    style="width:100%; padding:0.75rem; background: var(--tile-gradient); color:white; border:none; border-radius:0.5rem; cursor:pointer; font-family:inherit; font-size:0.95rem; font-weight:600; display:flex; align-items:center; justify-content:center; gap:0.5rem; margin-bottom:1rem;">
+                    <span
+                        style="background:rgba(255,255,255,0.3); border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; font-size:1.1rem;">+</span>
+                    Add New Document
+                </button>
+                <h3 style="margin-bottom:0.75rem; color:var(--primary-blue);">My Documents</h3>
                 <div id="docs-list">
-                    <p class="text-muted" style="font-size: 0.875rem;">Loading documents...</p>
+                    <p class="text-muted" style="font-size:0.875rem;">Loading documents...</p>
                 </div>
             </aside>
 
             <!-- Main content for adding / viewing doc -->
             <main class="main-content">
                 <!-- SUMMARY CARDS -->
+                <!-- STAT CARDS — always visible -->
                 <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:1rem;">
                     <div class="tile" style="padding:1.25rem; text-align:center;">
                         <p style="opacity:0.8; font-size:0.85rem; margin-bottom:0.25rem;">Total Documents</p>
@@ -47,8 +54,10 @@
                     </div>
                 </div>
 
-                <!-- LATEST HEALTH SNAPSHOT -->
-                <div class="tile light hidden" id="latest-values-card">
+                <!-- DYNAMIC PANEL -->
+
+                <!-- Panel 1: Latest Health Snapshot (default) -->
+                <div id="panel-snapshot" class="tile light">
                     <h3 style="color:var(--primary-blue); margin-bottom:0.5rem;">Latest Health Snapshot</h3>
                     <p class="text-muted" style="font-size:0.875rem; margin-bottom:1rem;">Most recent value per test
                         across all your documents.</p>
@@ -62,16 +71,21 @@
                                 <th>Status</th>
                             </tr>
                         </thead>
-                        <tbody id="latest-tbody"></tbody>
+                        <tbody id="latest-tbody">
+                            <tr>
+                                <td colspan="5" class="text-muted" style="text-align:center;">No data yet — add your
+                                    first document.</td>
+                            </tr>
+                        </tbody>
                     </table>
                 </div>
 
-                <!-- ADD NEW DOCUMENT -->
-                <div class="tile">
+                <!-- Panel 2: Add New Document -->
+                <div id="panel-add" class="tile hidden">
                     <h3>Add New Document</h3>
-                    <form id="add-doc-form" style="margin-top: 1rem;">
-                        <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-                            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                    <form id="add-doc-form" style="margin-top:1rem;">
+                        <div style="display:flex; gap:1rem; margin-bottom:1rem;">
+                            <div class="form-group" style="flex:1; margin-bottom:0;">
                                 <label>Document Type</label>
                                 <select id="doc-type" required>
                                     <option value="" disabled selected>Select Type</option>
@@ -81,7 +95,7 @@
                                     <option value="Other">Other</option>
                                 </select>
                             </div>
-                            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <div class="form-group" style="flex:1; margin-bottom:0;">
                                 <label>Date</label>
                                 <input type="date" id="doc-date" required>
                             </div>
@@ -91,16 +105,19 @@
                             <textarea id="doc-text" rows="5" required
                                 placeholder="Paste the text from your medical report here..."></textarea>
                         </div>
-                        <button type="submit" class="btn" style="background: white; color: var(--primary-blue);">Extract
-                            & Save</button>
+                        <div style="display:flex; gap:1rem;">
+                            <button type="submit" class="btn"
+                                style="background:white; color:var(--primary-blue);">Extract & Save</button>
+                            <button type="button" onclick="showPanel('snapshot')"
+                                style="background:none; border:none; cursor:pointer; color:rgba(255,255,255,0.7); font-family:inherit; font-size:0.9rem;">Cancel</button>
+                        </div>
                     </form>
                 </div>
 
-                <!-- EXTRACTION RESULTS -->
-                <div class="tile light hidden" id="extraction-results">
-                    <h3 style="color: var(--primary-blue);">Extracted Values</h3>
-                    <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 1rem;">Values extracted from your
-                        document.</p>
+                <!-- Panel 3: Document Detail -->
+                <div id="panel-detail" class="tile light hidden">
+                    <h3 style="color:var(--primary-blue);">Document Details</h3>
+                    <p class="text-muted" style="font-size:0.875rem; margin-bottom:1rem;" id="detail-subtitle">—</p>
                     <table>
                         <thead>
                             <tr>
@@ -122,6 +139,16 @@
     <script>
         requireAuth();
 
+        // ─── PANEL SWITCHER ───────────────────────────────────
+        function showPanel(name) {
+            document.getElementById('panel-snapshot').classList.add('hidden');
+            document.getElementById('panel-add').classList.add('hidden');
+            document.getElementById('panel-detail').classList.add('hidden');
+            document.getElementById('panel-' + name).classList.remove('hidden');
+            document.querySelectorAll('.doc-item').forEach(el => el.classList.remove('active'));
+        }
+
+        // ─── LOAD DOCUMENTS ───────────────────────────────────
         async function loadDocuments() {
             try {
                 const data = await apiCall('/documents');
@@ -129,8 +156,8 @@
                 const list = document.getElementById('docs-list');
                 list.innerHTML = '';
 
-                if (docs.length === 0) {
-                    list.innerHTML = '<p class="text-muted" style="font-size: 0.875rem;">No documents found.</p>';
+                if (!docs || docs.length === 0) {
+                    list.innerHTML = '<p class="text-muted" style="font-size:0.875rem;">No documents yet.</p>';
                     return;
                 }
 
@@ -146,88 +173,125 @@
                             <button onclick="deleteDocument('${doc.id}', event)" style="background:none; border:none; cursor:pointer; color:#ef4444; font-size:1.1rem; padding:0 4px;">✕</button>
                         </div>
                     `;
-                    item.onclick = () => {
+                    item.onclick = (e) => {
+                        if (e.target.tagName === 'BUTTON') return;
                         document.querySelectorAll('.doc-item').forEach(el => el.classList.remove('active'));
                         item.classList.add('active');
-                        showExtractedValues(doc.extracted_values || [], doc.document_type, doc.raw_text);
+                        showDocumentDetail(doc);
                     };
                     list.appendChild(item);
                 });
             } catch (err) {
                 console.error(err);
-                document.getElementById('docs-list').innerHTML = '<p style="color: #ef4444; font-size: 0.875rem;">Error loading documents.</p>';
+                document.getElementById('docs-list').innerHTML = '<p style="color:#ef4444; font-size:0.875rem;">Error loading documents.</p>';
             }
         }
 
+        // ─── SHOW DOCUMENT DETAIL ─────────────────────────────
+        function showDocumentDetail(doc) {
+            const subtitle = document.getElementById('detail-subtitle');
+            subtitle.textContent = `${doc.document_type} — ${new Date(doc.document_date).toLocaleDateString()}`;
+
+            showPanel('detail');
+
+            const tbody = document.getElementById('extracted-tbody');
+            tbody.innerHTML = '';
+
+            const values = doc.extracted_values || [];
+
+            if (doc.document_type === 'Prescription') {
+                document.getElementById('panel-detail').querySelector('table').style.display = 'none';
+                let rawDiv = document.getElementById('raw-text-display');
+                if (!rawDiv) {
+                    rawDiv = document.createElement('div');
+                    rawDiv.id = 'raw-text-display';
+                    rawDiv.style.cssText = 'white-space:pre-line; font-size:0.95rem; line-height:1.8; color:var(--text-main); padding:1rem 0;';
+                    document.getElementById('panel-detail').appendChild(rawDiv);
+                }
+                rawDiv.style.display = 'block';
+                rawDiv.textContent = doc.raw_text || 'No text available.';
+                return;
+            }
+
+            const tableEl = document.getElementById('panel-detail').querySelector('table');
+            tableEl.style.display = 'table';
+            const rawDiv = document.getElementById('raw-text-display');
+            if (rawDiv) rawDiv.style.display = 'none';
+
+            const TEST_ORDER = [
+                "Haemoglobin", "RBC Count", "WBC Count", "Platelet Count",
+                "Fasting Blood Sugar", "Postprandial Blood Sugar", "HbA1c",
+                "Total Cholesterol", "LDL Cholesterol", "HDL Cholesterol", "Triglycerides",
+                "TSH", "T3", "T4", "SGPT (ALT)", "SGOT (AST)", "Total Bilirubin",
+                "Creatinine", "Blood Urea"
+            ];
+
+            const sorted = [...values].sort((a, b) => {
+                const ai = TEST_ORDER.indexOf(a.test_name);
+                const bi = TEST_ORDER.indexOf(b.test_name);
+                return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+            });
+
+            if (sorted.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align:center;">No values extracted.</td></tr>';
+            } else {
+                sorted.forEach(val => {
+                    const flagged = val.is_flagged || false;
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${val.test_name || '-'}</td>
+                        <td class="${flagged ? 'flagged' : ''}">${val.value || '-'}</td>
+                        <td>${val.unit || '-'}</td>
+                        <td class="${flagged ? 'flagged' : ''}">${flagged ? '⚠ Flagged' : 'Normal'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        // ─── DELETE DOCUMENT ──────────────────────────────────
         async function deleteDocument(id, event) {
             event.stopPropagation();
             if (!confirm('Delete this document and all its extracted values?')) return;
-
             try {
                 await apiCall(`/documents/${id}`, 'DELETE');
                 await loadDocuments();
-                document.getElementById('extraction-results').classList.add('hidden');
+                await loadSummary();
+                showPanel('snapshot');
             } catch (err) {
-                alert('Error deleting document: ' + err.message);
+                alert('Error: ' + err.message);
             }
         }
 
-        function showExtractedValues(values, docType, rawText) {
-            const resultsDiv = document.getElementById('extraction-results');
-            const tbody = document.getElementById('extracted-tbody');
-            const tableEl = resultsDiv.querySelector('table');
-            tbody.innerHTML = '';
+        // ─── ADD DOCUMENT FORM ────────────────────────────────
+        document.getElementById('add-doc-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const document_type = document.getElementById('doc-type').value;
+            const document_date = document.getElementById('doc-date').value;
+            const raw_text = document.getElementById('doc-text').value;
+            const btn = e.target.querySelector('button[type="submit"]');
 
-            // Remove any existing raw text display
-            const existingRaw = document.getElementById('raw-text-display');
-            if (existingRaw) existingRaw.remove();
+            try {
+                btn.disabled = true;
+                btn.textContent = 'Processing...';
 
-            if (docType === 'Prescription') {
-                // Hide table, show formatted raw text instead
-                tableEl.style.display = 'none';
-                const rawDiv = document.createElement('div');
-                rawDiv.id = 'raw-text-display';
-                rawDiv.style.cssText = 'white-space: pre-line; font-size: 0.95rem; line-height: 1.8; color: var(--text-main); padding: 1rem 0;';
-                rawDiv.textContent = rawText || 'No text available.';
-                resultsDiv.querySelector('p').after(rawDiv);
-            } else {
-                // Show table for all other types
-                tableEl.style.display = 'table';
+                const res = await apiCall('/documents', 'POST', { document_type, document_date, raw_text });
 
-                // Sort by clinical order
-                const TEST_ORDER = [
-                    "Haemoglobin", "RBC Count", "WBC Count", "Platelet Count",
-                    "Fasting Blood Sugar", "Postprandial Blood Sugar", "HbA1c",
-                    "Total Cholesterol", "LDL Cholesterol", "HDL Cholesterol", "Triglycerides",
-                    "TSH", "T3", "T4",
-                    "SGPT (ALT)", "SGOT (AST)", "Total Bilirubin",
-                    "Creatinine", "Blood Urea"
-                ];
-                values = [...(values || [])].sort((a, b) => {
-                    const ai = TEST_ORDER.indexOf(a.test_name);
-                    const bi = TEST_ORDER.indexOf(b.test_name);
-                    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-                });
+                await loadDocuments();
+                await loadSummary();
 
-                if (!values || values.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" style="color:#888;">No values extracted from this document.</td></tr>';
-                } else {
-                    values.forEach(val => {
-                        const isFlagged = val.is_flagged || val.flagged || false;
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td>${val.test_name || '-'}</td>
-                            <td class="${isFlagged ? 'flagged' : ''}">${val.value || '-'}</td>
-                            <td>${val.unit || '-'}</td>
-                            <td class="${isFlagged ? 'flagged' : ''}">${isFlagged ? '⚠ Flagged' : 'Normal'}</td>
-                        `;
-                        tbody.appendChild(tr);
-                    });
-                }
+                document.getElementById('add-doc-form').reset();
+                showDocumentDetail({ ...res.document, extracted_values: res.extracted_values });
+
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Extract & Save';
             }
-            resultsDiv.classList.remove('hidden');
-        }
+        });
 
+        // ─── LOAD SUMMARY ─────────────────────────────────────
         async function loadSummary() {
             try {
                 const res = await apiCall('/summary');
@@ -267,47 +331,13 @@
                         `;
                         tbody.appendChild(tr);
                     });
-
-                    document.getElementById('latest-values-card').classList.remove('hidden');
                 }
-
             } catch (err) {
                 console.error('Summary load error:', err);
             }
         }
 
-        document.getElementById('add-doc-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const document_type = document.getElementById('doc-type').value;
-            const document_date = document.getElementById('doc-date').value;
-            const raw_text = document.getElementById('doc-text').value;
-            const btn = e.target.querySelector('button');
-
-            try {
-                btn.disabled = true;
-                btn.style.opacity = '0.7';
-                btn.textContent = 'Processing...';
-
-                const res = await apiCall('/documents', 'POST', { document_type, document_date, raw_text });
-
-                // Refresh list
-                await loadDocuments();
-
-                // Show newly extracted values
-                showExtractedValues(res.extracted_values || [], document_type, raw_text);;
-
-                // Reset form
-                document.getElementById('add-doc-form').reset();
-            } catch (err) {
-                alert('Error: ' + err.message);
-            } finally {
-                btn.disabled = false;
-                btn.style.opacity = '1';
-                btn.textContent = 'Extract & Save';
-            }
-        });
-
-        // Init
+        // ─── INIT ─────────────────────────────────────────────
         loadDocuments();
         loadSummary();
     </script>
